@@ -1,98 +1,174 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+import { ActionButton, InlineNotice, OnboardingColors } from '@/components/onboarding-ui';
+import { MaxContentWidth } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
 export default function HomeScreen() {
+  const theme = useTheme();
+  const [notice, setNotice] = useState('');
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled">
+        <View style={styles.content}>
+          <View style={styles.brand}>
+            <View style={styles.brandMark}>
+              <Text style={styles.leafMark}>❧</Text>
+            </View>
+            <Text style={[styles.brandName, { color: theme.text }]}>EcoEcho</Text>
+          </View>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
+          <Image
+            source={require('@/assets/images/forest-canopy.jpg')}
+            contentFit="cover"
+            accessibilityLabel="Sunlight filtering through a green forest"
+            style={styles.heroImage}
           />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+          <View style={styles.intro}>
+            <Text style={[styles.headline, { color: theme.text }]}>
+              Make a little change.
+              {'\n'}Leave a lasting echo.
+            </Text>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+              A greener tomorrow starts with the choices we make today.
+            </Text>
+          </View>
+
+          <View style={styles.loginPanel}>
+            <Text style={styles.panelTitle}>GET STARTED</Text>
+            <ActionButton
+              label="Continue with Google"
+              variant="outlined"
+              onPress={() =>
+                setNotice('Google sign-in is not configured. No sign-in was attempted.')
+              }
+            />
+            <View style={styles.separator}>
+              <View style={styles.separatorLine} />
+              <Text style={styles.separatorText}>OR</Text>
+              <View style={styles.separatorLine} />
+            </View>
+            <ActionButton
+              label="Continue with phone number"
+              onPress={() => router.push('/phone')}
+            />
+            {notice ? <InlineNotice message={notice} /> : null}
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
   safeArea: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
   },
-  heroSection: {
+  scrollContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingHorizontal: 22,
+    paddingVertical: 16,
+  },
+  content: {
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    flex: 1,
+    justifyContent: 'center',
+    gap: 18,
+  },
+  brand: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+    gap: 10,
+    paddingVertical: 2,
   },
-  title: {
+  brandMark: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: OnboardingColors.paleGreen,
+    borderWidth: 1,
+    borderColor: OnboardingColors.border,
+  },
+  leafMark: {
+    color: OnboardingColors.forest,
+    fontSize: 28,
+    lineHeight: 32,
+    transform: [{ rotate: '-35deg' }],
+  },
+  brandName: {
+    fontSize: 27,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  heroImage: {
+    width: '100%',
+    aspectRatio: 1.3,
+    maxHeight: 340,
+    borderRadius: 26,
+    backgroundColor: OnboardingColors.paleGreen,
+  },
+  intro: {
+    gap: 7,
+    alignItems: 'center',
+  },
+  headline: {
+    fontSize: 25,
+    lineHeight: 31,
+    fontWeight: '800',
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
-  code: {
-    textTransform: 'uppercase',
+  subtitle: {
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+    maxWidth: 330,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  loginPanel: {
+    width: '100%',
+    paddingHorizontal: 17,
+    paddingVertical: 18,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: OnboardingColors.border,
+    backgroundColor: OnboardingColors.panel,
+    gap: 12,
+  },
+  panelTitle: {
+    color: OnboardingColors.forest,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.7,
+    textAlign: 'center',
+    marginBottom: 1,
+  },
+  separator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: OnboardingColors.border,
+  },
+  separatorText: {
+    color: OnboardingColors.muted,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
   },
 });
