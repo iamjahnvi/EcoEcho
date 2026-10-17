@@ -1,103 +1,17 @@
 import { Image } from 'expo-image';
-import * as Google from 'expo-auth-session/providers/google';
-import { ResponseType } from 'expo-auth-session';
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { GoogleSignInAction } from '@/components/google-sign-in-action';
 import { ActionButton, InlineNotice, OnboardingColors } from '@/components/onboarding-ui';
 import { MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-if (Platform.OS === 'web') {
-  WebBrowser.maybeCompleteAuthSession();
-}
-
-const googleAndroidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID?.trim();
-const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim();
-
-type GoogleSignInActionProps = {
-  onNotice: (message: string) => void;
-};
-
-function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
-  const [request, response, promptAsync] = Google.useAuthRequest(
-    {
-      androidClientId: googleAndroidClientId,
-      webClientId: googleWebClientId,
-      responseType: ResponseType.Code,
-      selectAccount: true,
-    },
-    {
-      native: 'ecoecho://oauthredirect',
-      scheme: 'ecoecho',
-    }
-  );
-  const [isPrompting, setIsPrompting] = useState(false);
-
-  useEffect(() => {
-    if (!response) return;
-
-    if (response.type === 'success') {
-      if (response.params.id_token) {
-        onNotice(
-          'Google returned an ID token, but EcoEcho has no configured backend to verify it or create an app session.'
-        );
-      } else {
-        onNotice(
-          'Google sign-in did not return an ID token. No EcoEcho app session was created.'
-        );
-      }
-    } else if (response.type === 'error') {
-      onNotice(
-        `Google sign-in failed: ${response.error?.message ?? response.params.error_description ?? 'The authorization request was rejected.'}`
-      );
-    } else if (response.type === 'cancel' || response.type === 'dismiss') {
-      onNotice('Google sign-in was cancelled. No EcoEcho app session was created.');
-    }
-  }, [onNotice, response]);
-
-  async function handleGoogleSignIn() {
-    if (!request || isPrompting) return;
-
-    setIsPrompting(true);
-    try {
-      const result = await promptAsync();
-      if (result.type === 'error') {
-        onNotice(
-          `Google sign-in failed: ${result.error?.message ?? result.params.error_description ?? 'The authorization request was rejected.'}`
-        );
-      } else if (result.type === 'cancel' || result.type === 'dismiss') {
-        onNotice('Google sign-in was cancelled. No EcoEcho app session was created.');
-      }
-    } catch (error) {
-      onNotice(
-        `Google sign-in could not be completed: ${error instanceof Error ? error.message : 'An unexpected error occurred.'}`
-      );
-    } finally {
-      setIsPrompting(false);
-    }
-  }
-
-  return (
-    <ActionButton
-      label="Continue with Google"
-      variant="outlined"
-      disabled={!request || isPrompting}
-      onPress={handleGoogleSignIn}
-    />
-  );
-}
-
 export default function HomeScreen() {
   const theme = useTheme();
   const [notice, setNotice] = useState('');
-  const isGoogleSupported = Platform.OS === 'android' || Platform.OS === 'web';
-  const isGoogleConfigured =
-    (Platform.OS === 'android' && Boolean(googleAndroidClientId)) ||
-    (Platform.OS === 'web' && Boolean(googleWebClientId));
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -131,21 +45,7 @@ export default function HomeScreen() {
 
           <View style={styles.loginPanel}>
             <Text style={styles.panelTitle}>GET STARTED</Text>
-            {isGoogleSupported && isGoogleConfigured ? (
-              <GoogleSignInAction onNotice={setNotice} />
-            ) : (
-              <ActionButton
-                label="Continue with Google"
-                variant="outlined"
-                onPress={() =>
-                  setNotice(
-                    isGoogleSupported
-                      ? 'Google sign-in is not configured. Add the platform Google OAuth client ID to enable it.'
-                      : 'Google sign-in is not configured for this platform.'
-                  )
-                }
-              />
-            )}
+            <GoogleSignInAction onNotice={setNotice} />
             <View style={styles.separator}>
               <View style={styles.separatorLine} />
               <Text style={styles.separatorText}>OR</Text>
