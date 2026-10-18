@@ -3,29 +3,23 @@ import { useState } from 'react';
 
 import { ActionButton } from '@/components/onboarding-ui';
 import { getSupabaseClient } from '@/lib/supabase';
-import {
-  GoogleOneTapSignIn,
-  isCancelledResponse,
-  isErrorWithCode,
-  isNoSavedCredentialFoundResponse,
-  isSuccessResponse,
-  statusCodes,
-} from 'react-native-nitro-google-signin';
 
 type GoogleSignInActionProps = {
   onNotice: (message: string) => void;
 };
 
+type GoogleSignInModule = typeof import('react-native-nitro-google-signin');
+
 const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim();
 
-function configureGoogleSignIn(nonce: string) {
+function configureGoogleSignIn(googleSignIn: GoogleSignInModule, nonce: string) {
   if (!webClientId) {
     throw new Error(
       'Google sign-in is not configured. Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to the Web OAuth client ID.'
     );
   }
 
-  GoogleOneTapSignIn.configure({
+  googleSignIn.GoogleOneTapSignIn.configure({
     webClientId,
     nonce,
     autoSelectOnSignIn: false,
@@ -49,7 +43,11 @@ function getSupabaseErrorMessage(error: unknown) {
   return 'Supabase could not complete Google sign-in. Please try again.';
 }
 
-function getSignInErrorMessage(error: unknown) {
+function getSignInErrorMessage(error: unknown, googleSignIn?: GoogleSignInModule) {
+  if (error instanceof Error && /Failed to get NitroModules|native "NitroModules"/i.test(error.message)) {
+    return 'Google sign-in is unavailable in this app build. Install a new EAS development build with the native Nitro modules included.';
+  }
+
   if (error instanceof Error && error.message.startsWith('Supabase is not configured.')) {
     return error.message;
   }
@@ -57,19 +55,19 @@ function getSignInErrorMessage(error: unknown) {
     return error.message;
   }
 
-  if (isErrorWithCode(error)) {
+  if (googleSignIn?.isErrorWithCode(error)) {
     switch (error.code) {
-      case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+      case googleSignIn.statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
         return 'Google Play services are missing or out of date. Update Google Play services and try again.';
-      case statusCodes.DEVELOPER_ERROR:
+      case googleSignIn.statusCodes.DEVELOPER_ERROR:
         return 'Google sign-in configuration was rejected. Check the Android package name, signing SHA-1, and Web client ID.';
-      case statusCodes.SIGN_IN_CANCELLED:
+      case googleSignIn.statusCodes.SIGN_IN_CANCELLED:
         return 'Google sign-in was cancelled.';
-      case statusCodes.IN_PROGRESS:
+      case googleSignIn.statusCodes.IN_PROGRESS:
         return 'Google sign-in is already in progress. Please wait and try again.';
-      case statusCodes.ONE_TAP_START_FAILED:
+      case googleSignIn.statusCodes.ONE_TAP_START_FAILED:
         return 'Google sign-in could not start. Check your network connection and Google Play services.';
-      case statusCodes.SIGN_IN_REQUIRED:
+      case googleSignIn.statusCodes.SIGN_IN_REQUIRED:
         return 'Google could not complete sign-in. Please try again.';
     }
   }
@@ -88,7 +86,10 @@ export function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
     if (isSigningIn) return;
 
     setIsSigningIn(true);
+    let googleSignIn: GoogleSignInModule | undefined;
+
     try {
+      googleSignIn = await import('react-native-nitro-google-signin');
       const supabase = getSupabaseClient();
       const nonce = Crypto.randomUUID();
       const hashedNonce = await Crypto.digestStringAsync(
@@ -96,39 +97,39 @@ export function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
         nonce
       );
 
-      configureGoogleSignIn(hashedNonce);
-      await GoogleOneTapSignIn.checkPlayServices();
+      configureGoogleSignIn(googleSignIn, hashedNonce);
+      await googleSignIn.GoogleOneTapSignIn.checkPlayServices();
 
-      let response = await GoogleOneTapSignIn.signIn();
-      if (isCancelledResponse(response)) {
+      let response = await googleSignIn.GoogleOneTapSignIn.signIn();
+      if (googleSignIn.isCancelledResponse(response)) {
         onNotice('Google sign-in was cancelled.');
         return;
       }
 
-      if (isNoSavedCredentialFoundResponse(response)) {
-        response = await GoogleOneTapSignIn.createAccount();
+      if (googleSignIn.isNoSavedCredentialFoundResponse(response)) {
+        response = await googleSignIn.GoogleOneTapSignIn.createAccount();
       }
 
-      if (isCancelledResponse(response)) {
+      if (googleSignIn.isCancelledResponse(response)) {
         onNotice('Google sign-in was cancelled.');
         return;
       }
 
-      if (isNoSavedCredentialFoundResponse(response)) {
-        response = await GoogleOneTapSignIn.presentExplicitSignIn();
+      if (googleSignIn.isNoSavedCredentialFoundResponse(response)) {
+        response = await googleSignIn.GoogleOneTapSignIn.presentExplicitSignIn();
       }
 
-      if (isCancelledResponse(response)) {
+      if (googleSignIn.isCancelledResponse(response)) {
         onNotice('Google sign-in was cancelled.');
         return;
       }
 
-      if (!isSuccessResponse(response) || !response.data.idToken) {
+      if (!googleSignIn.isSuccessResponse(response) || !response.data.idToken) {
         onNotice('Google did not return an identity token. No EcoEcho session was created.');
         return;
       }
 
-      const { accessToken } = await GoogleOneTapSignIn.getTokens();
+      const { accessToken } = await googleSignIn.GoogleOneTapSignIn.getTokens();
       const { data, error } = await supabase.auth.signInWithIdToken({
         provider: 'google',
         token: response.data.idToken,
@@ -148,7 +149,7 @@ export function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
 
       onNotice('You are signed in to EcoEcho with Google.');
     } catch (error) {
-      onNotice(getSignInErrorMessage(error));
+      onNotice(getSignInErrorMessage(error, googleSignIn));
     } finally {
       setIsSigningIn(false);
     }
