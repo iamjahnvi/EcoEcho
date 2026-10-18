@@ -27,9 +27,6 @@ export default function AppTabs() {
           renderingMode="template"
         />
       </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="phone" hidden />
-      <NativeTabs.Trigger name="verify" hidden />
     </NativeTabs>
   );
 }

@@ -26,24 +26,45 @@ function configureGoogleSignIn(googleSignIn: GoogleSignInModule, nonce: string) 
   });
 }
 
-function getSupabaseErrorMessage(error: unknown) {
-  if (error instanceof Error && /network|timeout|offline|connect/i.test(error.message)) {
-    return 'Could not connect to Supabase. Check your network connection and try again.';
+function getErrorProperties(error: unknown) {
+  if (typeof error === 'object' && error !== null) {
+    const candidate = error as { code?: unknown; message?: unknown; status?: unknown };
+    const code =
+      typeof candidate.code === 'string'
+        ? candidate.code.replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 80)
+        : undefined;
+    return {
+      code: code || undefined,
+      message: typeof candidate.message === 'string' ? candidate.message : undefined,
+      status: typeof candidate.status === 'number' ? String(candidate.status) : undefined,
+    };
   }
 
-  if (typeof error === 'object' && error !== null && 'status' in error) {
-    if (error.status === 400 || error.status === 401) {
-      return 'Supabase rejected Google sign-in. Check that Google Auth is enabled and configured in your Supabase project.';
-    }
-    if (error.status === 429) {
-      return 'Too many sign-in attempts. Please wait a moment and try again.';
-    }
-  }
-
-  return 'Supabase could not complete Google sign-in. Please try again.';
+  return {
+    code: undefined,
+    message: typeof error === 'string' ? error : undefined,
+    status: undefined,
+  };
 }
 
-function getSignInErrorMessage(error: unknown, googleSignIn?: GoogleSignInModule) {
+function sanitizeDiagnosticMessage(message: string) {
+  return message
+    .replace(/\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[redacted token]')
+    .replace(/\bBearer\s+\S+/gi, 'Bearer [redacted]')
+    .replace(
+      /\b(access_token|refresh_token|id_token|client_secret|token)\s*[:=]\s*[^,\s&]+/gi,
+      '$1=[redacted]'
+    )
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[redacted account]')
+    .replace(/\+?\d[\d\s().-]{7,}\d/g, '[redacted number]')
+    .slice(0, 240);
+}
+
+function getSignInErrorMessage(
+  error: unknown,
+  stage: string,
+  googleSignIn?: GoogleSignInModule
+) {
   if (error instanceof Error && /Failed to get NitroModules|native "NitroModules"/i.test(error.message)) {
     return 'Google sign-in is unavailable in this app build. Install a new EAS development build with the native Nitro modules included.';
   }
@@ -55,28 +76,32 @@ function getSignInErrorMessage(error: unknown, googleSignIn?: GoogleSignInModule
     return error.message;
   }
 
-  if (googleSignIn?.isErrorWithCode(error)) {
-    switch (error.code) {
-      case googleSignIn.statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
-        return 'Google Play services are missing or out of date. Update Google Play services and try again.';
-      case googleSignIn.statusCodes.DEVELOPER_ERROR:
-        return 'Google sign-in configuration was rejected. Check the Android package name, signing SHA-1, and Web client ID.';
-      case googleSignIn.statusCodes.SIGN_IN_CANCELLED:
-        return 'Google sign-in was cancelled.';
-      case googleSignIn.statusCodes.IN_PROGRESS:
-        return 'Google sign-in is already in progress. Please wait and try again.';
-      case googleSignIn.statusCodes.ONE_TAP_START_FAILED:
-        return 'Google sign-in could not start. Check your network connection and Google Play services.';
-      case googleSignIn.statusCodes.SIGN_IN_REQUIRED:
-        return 'Google could not complete sign-in. Please try again.';
-    }
+  const properties = getErrorProperties(error);
+  const nativeCode = googleSignIn?.isErrorWithCode(error)
+    ? error.code.replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 80)
+    : undefined;
+  const code = nativeCode ?? properties.code;
+  const status = properties.status ? `HTTP ${properties.status}` : undefined;
+  const diagnostic = properties.message
+    ? sanitizeDiagnosticMessage(properties.message)
+    : undefined;
+  const detail = [code ?? status ?? 'no provider code', diagnostic].filter(Boolean).join(': ');
+
+  if (stage === 'Supabase authentication') {
+    return `Supabase authentication failed [${detail}]. Check the Google provider configuration and network connection.`;
   }
 
-  if (error instanceof Error && /network|timeout|offline|connect/i.test(error.message)) {
-    return 'Google sign-in could not connect. Check your network connection and try again.';
+  if (code === googleSignIn?.statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+    return `Google Play services are unavailable [${detail}]. Update Google Play services and try again.`;
+  }
+  if (code === googleSignIn?.statusCodes.DEVELOPER_ERROR) {
+    return `Google OAuth configuration was rejected [${detail}]. Check the Android package name, signing SHA-1, and Web client ID.`;
+  }
+  if (code === googleSignIn?.statusCodes.SIGN_IN_CANCELLED) {
+    return `Google sign-in was cancelled [${detail}].`;
   }
 
-  return 'Google sign-in failed. Check your connection and Google account configuration, then try again.';
+  return `${stage} failed [${detail}].`;
 }
 
 export function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
@@ -87,9 +112,11 @@ export function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
 
     setIsSigningIn(true);
     let googleSignIn: GoogleSignInModule | undefined;
+    let stage = 'Google module loading';
 
     try {
       googleSignIn = await import('react-native-nitro-google-signin');
+      stage = 'Supabase client initialization';
       const supabase = getSupabaseClient();
       const nonce = Crypto.randomUUID();
       const hashedNonce = await Crypto.digestStringAsync(
@@ -97,12 +124,17 @@ export function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
         nonce
       );
 
+      stage = 'Google OAuth configuration';
       configureGoogleSignIn(googleSignIn, hashedNonce);
+      stage = 'Google Play services check';
       await googleSignIn.GoogleOneTapSignIn.checkPlayServices();
 
+      stage = 'Google sign-in';
       let response = await googleSignIn.GoogleOneTapSignIn.signIn();
       if (googleSignIn.isCancelledResponse(response)) {
-        onNotice('Google sign-in was cancelled.');
+        onNotice(
+          'Google returned a cancellation response without an error code. If you dismissed the account picker, sign-in was cancelled; otherwise check the Android OAuth client package name and signing SHA-1.'
+        );
         return;
       }
 
@@ -111,7 +143,9 @@ export function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
       }
 
       if (googleSignIn.isCancelledResponse(response)) {
-        onNotice('Google sign-in was cancelled.');
+        onNotice(
+          'Google returned a cancellation response without an error code. If you dismissed the account picker, sign-in was cancelled; otherwise check the Android OAuth client package name and signing SHA-1.'
+        );
         return;
       }
 
@@ -120,16 +154,24 @@ export function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
       }
 
       if (googleSignIn.isCancelledResponse(response)) {
-        onNotice('Google sign-in was cancelled.');
+        onNotice(
+          'Google returned a cancellation response without an error code. If you dismissed the account picker, sign-in was cancelled; otherwise check the Android OAuth client package name and signing SHA-1.'
+        );
         return;
       }
 
-      if (!googleSignIn.isSuccessResponse(response) || !response.data.idToken) {
-        onNotice('Google did not return an identity token. No EcoEcho session was created.');
+      if (!googleSignIn.isSuccessResponse(response)) {
+        onNotice(`Google returned no account credential [${response.type}]. No session was created.`);
+        return;
+      }
+      if (!response.data.idToken) {
+        onNotice('Google returned no ID token [MISSING_ID_TOKEN]. No session was created.');
         return;
       }
 
+      stage = 'Google token retrieval';
       const { accessToken } = await googleSignIn.GoogleOneTapSignIn.getTokens();
+      stage = 'Supabase authentication';
       const { data, error } = await supabase.auth.signInWithIdToken({
         provider: 'google',
         token: response.data.idToken,
@@ -138,7 +180,7 @@ export function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
       });
 
       if (error) {
-        onNotice(getSupabaseErrorMessage(error));
+        onNotice(getSignInErrorMessage(error, stage, googleSignIn));
         return;
       }
 
@@ -149,7 +191,7 @@ export function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
 
       onNotice('You are signed in to EcoEcho with Google.');
     } catch (error) {
-      onNotice(getSignInErrorMessage(error, googleSignIn));
+      onNotice(getSignInErrorMessage(error, stage, googleSignIn));
     } finally {
       setIsSigningIn(false);
     }
