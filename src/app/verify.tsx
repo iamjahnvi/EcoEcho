@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -30,9 +30,21 @@ function maskIndianNumber(phoneNumber: string) {
 
 export default function VerifyScreen() {
   const theme = useTheme();
-  const { phone: phoneParam } = useLocalSearchParams<{ phone?: string }>();
+  const { phone: phoneParam, sentAt: sentAtParam } = useLocalSearchParams<{
+    phone?: string;
+    sentAt?: string;
+  }>();
   const phoneNumber = typeof phoneParam === 'string' ? phoneParam.trim() : '';
   const isValidNumber = /^\+91[6-9]\d{9}$/.test(phoneNumber);
+  const sentAt = typeof sentAtParam === 'string' ? Number(sentAtParam) : Number.NaN;
+  const initialDeadline =
+    Number.isSafeInteger(sentAt) && sentAt > 0 ? sentAt + 60_000 : null;
+  const hasOtpRequest = initialDeadline !== null;
+  const [remainingSeconds, setRemainingSeconds] = useState(() =>
+    initialDeadline === null
+      ? 0
+      : Math.min(60, Math.max(0, Math.ceil((initialDeadline - Date.now()) / 1000)))
+  );
   const [code, setCode] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [notice, setNotice] = useState(
     !isValidNumber
@@ -45,8 +57,19 @@ export default function VerifyScreen() {
     isValidNumber && isOtpLengthSettingValid ? 'info' : 'error'
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const inputRefs = useRef<(TextInput | null)[]>([]);
-  const canUseOtpFlow = isValidNumber && isOtpLengthSettingValid;
+  const canUseOtpFlow = isValidNumber && isOtpLengthSettingValid && hasOtpRequest;
+  const isCountingDown = remainingSeconds > 0;
+
+  useEffect(() => {
+    if (!canUseOtpFlow || !isCountingDown) return;
+
+    const intervalId = setInterval(() => {
+      setRemainingSeconds((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, [canUseOtpFlow, isCountingDown]);
 
   function handleCodeChange(index: number, value: string) {
     const digits = value.replace(/\D/g, '');
@@ -71,7 +94,7 @@ export default function VerifyScreen() {
   }
 
   async function handleVerify() {
-    if (isSubmitting) return;
+    if (isSubmittingRef.current) return;
     if (!canUseOtpFlow) {
       setNoticeKind('error');
       setNotice(
@@ -87,6 +110,7 @@ export default function VerifyScreen() {
       return;
     }
 
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     setNotice('');
     try {
@@ -118,13 +142,15 @@ export default function VerifyScreen() {
           : 'Verification failed. Check your connection and try again.'
       );
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   }
 
   async function handleResend() {
-    if (isSubmitting || !canUseOtpFlow) return;
+    if (isSubmittingRef.current || !canUseOtpFlow || remainingSeconds > 0) return;
 
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     setNotice('');
     try {
@@ -140,6 +166,7 @@ export default function VerifyScreen() {
       }
 
       setCode(Array(OTP_LENGTH).fill(''));
+      setRemainingSeconds(60);
       setNoticeKind('info');
       setNotice('A new verification code was requested. Check your messages.');
     } catch (error) {
@@ -150,6 +177,7 @@ export default function VerifyScreen() {
           : 'A new verification code could not be requested. Check your connection and try again.'
       );
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   }
@@ -209,14 +237,18 @@ export default function VerifyScreen() {
             </View>
 
             <View style={styles.timerArea}>
-              <Text style={styles.timer}>00:49</Text>
+              <Text style={styles.timer}>
+                {`${String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:${String(
+                  remainingSeconds % 60
+                ).padStart(2, '0')}`}
+              </Text>
               <Text style={styles.timerCaption}>Enter the code sent to your phone.</Text>
             </View>
 
             <ActionButton
               label={isSubmitting ? 'PLEASE WAIT...' : 'Resend OTP'}
               variant="outlined"
-              disabled={isSubmitting || !canUseOtpFlow}
+              disabled={isSubmitting || !canUseOtpFlow || remainingSeconds > 0}
               onPress={handleResend}
             />
 

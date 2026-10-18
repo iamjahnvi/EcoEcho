@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -22,9 +22,10 @@ export default function PhoneScreen() {
   const [notice, setNotice] = useState('');
   const [noticeKind, setNoticeKind] = useState<'info' | 'error'>('info');
   const [isSending, setIsSending] = useState(false);
+  const isSendingRef = useRef(false);
 
   async function handleSendOtp() {
-    if (isSending) return;
+    if (isSendingRef.current) return;
     if (!/^[6-9]\d{9}$/.test(phoneNumber)) {
       setNoticeKind('error');
       setNotice('Enter a valid 10-digit Indian mobile number.');
@@ -32,6 +33,7 @@ export default function PhoneScreen() {
     }
 
     const phone = `+91${phoneNumber}`;
+    isSendingRef.current = true;
     setIsSending(true);
     setNotice('');
 
@@ -44,7 +46,10 @@ export default function PhoneScreen() {
         return;
       }
 
-      router.push({ pathname: '/verify', params: { phone } });
+      router.push({
+        pathname: '/verify',
+        params: { phone, sentAt: String(Date.now()) },
+      });
     } catch (error) {
       setNoticeKind('error');
       setNotice(
@@ -53,6 +58,7 @@ export default function PhoneScreen() {
           : 'Could not send a verification code. Check your connection and try again.'
       );
     } finally {
+      isSendingRef.current = false;
       setIsSending(false);
     }
   }
