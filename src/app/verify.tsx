@@ -14,27 +14,44 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActionButton, InlineNotice, OnboardingColors } from '@/components/onboarding-ui';
 import { MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { getSupabaseClient } from '@/lib/supabase';
 
-const OTP_LENGTH = 4;
+const DEFAULT_OTP_LENGTH = 6;
+const otpLengthSetting = process.env.EXPO_PUBLIC_SUPABASE_SMS_OTP_LENGTH?.trim();
+const parsedOtpLength = otpLengthSetting ? Number(otpLengthSetting) : DEFAULT_OTP_LENGTH;
+const isOtpLengthSettingValid =
+  Number.isInteger(parsedOtpLength) && parsedOtpLength >= 4 && parsedOtpLength <= 10;
+const OTP_LENGTH = isOtpLengthSettingValid ? parsedOtpLength : DEFAULT_OTP_LENGTH;
 
 function maskIndianNumber(phoneNumber: string) {
-  return `+91 ${phoneNumber.slice(0, 4)}••••${phoneNumber.slice(-2)}`;
+  const nationalNumber = phoneNumber.slice(3);
+  return `+91 ${nationalNumber.slice(0, 4)}••••${nationalNumber.slice(-2)}`;
 }
 
 export default function VerifyScreen() {
   const theme = useTheme();
-  const { phone } = useLocalSearchParams<{ phone?: string }>();
-  const phoneNumber = typeof phone === 'string' ? phone.replace(/\D/g, '') : '';
-  const isValidNumber = /^[6-9]\d{9}$/.test(phoneNumber);
+  const { phone: phoneParam } = useLocalSearchParams<{ phone?: string }>();
+  const phoneNumber = typeof phoneParam === 'string' ? phoneParam.trim() : '';
+  const isValidNumber = /^\+91[6-9]\d{9}$/.test(phoneNumber);
   const [code, setCode] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [notice, setNotice] = useState(
-    'No OTP was sent. Phone verification is not configured, so there is no active verification session.'
+    !isValidNumber
+      ? 'No active phone verification. Return to phone entry and request a code.'
+      : !isOtpLengthSettingValid
+        ? 'EXPO_PUBLIC_SUPABASE_SMS_OTP_LENGTH must be a whole number from 4 to 10.'
+        : ''
   );
+  const [noticeKind, setNoticeKind] = useState<'info' | 'error'>(
+    isValidNumber && isOtpLengthSettingValid ? 'info' : 'error'
+  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRefs = useRef<(TextInput | null)[]>([]);
+  const canUseOtpFlow = isValidNumber && isOtpLengthSettingValid;
 
   function handleCodeChange(index: number, value: string) {
     const digits = value.replace(/\D/g, '');
     const nextCode = [...code];
+    setNotice('');
 
     if (digits.length > 1) {
       const pastedDigits = digits.slice(0, OTP_LENGTH - index).split('');
@@ -48,19 +65,93 @@ export default function VerifyScreen() {
 
     nextCode[index] = digits;
     setCode(nextCode);
-    setNotice('');
     if (digits && index < OTP_LENGTH - 1) {
       inputRefs.current[index + 1]?.focus();
     }
   }
 
-  function handleVerify() {
-    if (code.some((digit) => !digit)) return;
-    setNotice('This code cannot be verified because phone authentication is not configured.');
+  async function handleVerify() {
+    if (isSubmitting) return;
+    if (!canUseOtpFlow) {
+      setNoticeKind('error');
+      setNotice(
+        isValidNumber
+          ? 'The configured SMS OTP length is invalid.'
+          : 'No valid phone number is associated with this verification request.'
+      );
+      return;
+    }
+    if (code.some((digit) => !digit)) {
+      setNoticeKind('error');
+      setNotice(`Enter the complete ${OTP_LENGTH}-digit verification code.`);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setNotice('');
+    try {
+      const { data, error } = await getSupabaseClient().auth.verifyOtp({
+        phone: phoneNumber,
+        token: code.join(''),
+        type: 'sms',
+      });
+
+      if (error) {
+        setNoticeKind('error');
+        setNotice(error.message || 'The verification code could not be confirmed.');
+        return;
+      }
+
+      if (!data.session?.access_token || !data.session.user?.id) {
+        setNoticeKind('error');
+        setNotice('Supabase did not return a valid session. Phone sign-in was not completed.');
+        return;
+      }
+
+      setNoticeKind('info');
+      setNotice('Your phone number is verified and you are signed in.');
+    } catch (error) {
+      setNoticeKind('error');
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : 'Verification failed. Check your connection and try again.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
-  function handleResend() {
-    setNotice('No OTP can be resent because phone verification is not configured.');
+  async function handleResend() {
+    if (isSubmitting || !canUseOtpFlow) return;
+
+    setIsSubmitting(true);
+    setNotice('');
+    try {
+      const { error } = await getSupabaseClient().auth.resend({
+        phone: phoneNumber,
+        type: 'sms',
+      });
+
+      if (error) {
+        setNoticeKind('error');
+        setNotice(error.message || 'A new verification code could not be sent.');
+        return;
+      }
+
+      setCode(Array(OTP_LENGTH).fill(''));
+      setNoticeKind('info');
+      setNotice('A new verification code was requested. Check your messages.');
+    } catch (error) {
+      setNoticeKind('error');
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : 'A new verification code could not be requested. Check your connection and try again.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -80,7 +171,9 @@ export default function VerifyScreen() {
                 <Text style={styles.destinationNumber}>{maskIndianNumber(phoneNumber)}</Text>
               ) : null}
               <Text style={styles.inactiveMessage}>
-                No OTP was sent. Phone verification is not configured.
+                {isValidNumber
+                  ? 'Enter the SMS code to continue.'
+                  : 'Request a verification code from the phone number screen.'}
               </Text>
             </View>
 
@@ -95,6 +188,7 @@ export default function VerifyScreen() {
                   }}
                   accessibilityLabel={`OTP digit ${index + 1}`}
                   autoComplete={index === 0 ? 'one-time-code' : 'off'}
+                  editable={!isSubmitting}
                   keyboardType="number-pad"
                   maxLength={index === 0 ? OTP_LENGTH : 1}
                   onChangeText={(value) => handleCodeChange(index, value)}
@@ -116,16 +210,21 @@ export default function VerifyScreen() {
 
             <View style={styles.timerArea}>
               <Text style={styles.timer}>00:49</Text>
-              <Text style={styles.timerCaption}>Timer starts only after an OTP is sent.</Text>
+              <Text style={styles.timerCaption}>Enter the code sent to your phone.</Text>
             </View>
 
-            <ActionButton label="Resend OTP" variant="outlined" onPress={handleResend} />
+            <ActionButton
+              label={isSubmitting ? 'PLEASE WAIT...' : 'Resend OTP'}
+              variant="outlined"
+              disabled={isSubmitting || !canUseOtpFlow}
+              onPress={handleResend}
+            />
 
-            {notice ? <InlineNotice message={notice} /> : null}
+            {notice ? <InlineNotice kind={noticeKind} message={notice} /> : null}
 
             <ActionButton
-              label="LET'S GOOOOO"
-              disabled={code.some((digit) => !digit)}
+              label={isSubmitting ? 'VERIFYING...' : "LET'S GOOOOO"}
+              disabled={isSubmitting || !canUseOtpFlow || code.some((digit) => !digit)}
               onPress={handleVerify}
             />
           </View>
@@ -192,12 +291,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   codeRow: {
+    width: '100%',
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 12,
+    gap: 8,
   },
   codeInput: {
     width: 57,
+    maxWidth: 57,
+    flex: 1,
     height: 66,
     borderRadius: 16,
     borderWidth: 1.5,

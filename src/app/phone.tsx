@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -13,22 +14,47 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActionButton, InlineNotice, OnboardingColors } from '@/components/onboarding-ui';
 import { MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { getSupabaseClient } from '@/lib/supabase';
 
 export default function PhoneScreen() {
   const theme = useTheme();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [notice, setNotice] = useState('');
   const [noticeKind, setNoticeKind] = useState<'info' | 'error'>('info');
+  const [isSending, setIsSending] = useState(false);
 
-  function handleSendOtp() {
+  async function handleSendOtp() {
+    if (isSending) return;
     if (!/^[6-9]\d{9}$/.test(phoneNumber)) {
       setNoticeKind('error');
       setNotice('Enter a valid 10-digit Indian mobile number.');
       return;
     }
 
-    setNoticeKind('info');
-    setNotice('Phone verification is not configured yet. No OTP was sent.');
+    const phone = `+91${phoneNumber}`;
+    setIsSending(true);
+    setNotice('');
+
+    try {
+      const { error } = await getSupabaseClient().auth.signInWithOtp({ phone });
+
+      if (error) {
+        setNoticeKind('error');
+        setNotice(error.message || 'Could not send a verification code. Please try again.');
+        return;
+      }
+
+      router.push({ pathname: '/verify', params: { phone } });
+    } catch (error) {
+      setNoticeKind('error');
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : 'Could not send a verification code. Check your connection and try again.'
+      );
+    } finally {
+      setIsSending(false);
+    }
   }
 
   return (
@@ -56,6 +82,7 @@ export default function PhoneScreen() {
               <TextInput
                 accessibilityLabel="Enter your 10-digit Indian mobile number"
                 autoComplete="tel-national"
+                editable={!isSending}
                 keyboardType="phone-pad"
                 maxLength={10}
                 onChangeText={(value) => {
@@ -71,7 +98,11 @@ export default function PhoneScreen() {
               />
             </View>
 
-            <ActionButton label="SEND OTP" onPress={handleSendOtp} />
+            <ActionButton
+              label={isSending ? 'SENDING...' : 'SEND OTP'}
+              disabled={isSending}
+              onPress={handleSendOtp}
+            />
             {notice ? <InlineNotice kind={noticeKind} message={notice} /> : null}
           </View>
         </ScrollView>
