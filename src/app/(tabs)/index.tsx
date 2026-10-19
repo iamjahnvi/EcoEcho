@@ -1,11 +1,11 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GoogleSignInAction } from '@/components/google-sign-in-action';
-import { ActionButton, InlineNotice, OnboardingColors } from '@/components/onboarding-ui';
+import { PasskeyActions } from '@/components/passkey-actions';
+import { InlineNotice, OnboardingColors } from '@/components/onboarding-ui';
 import { MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -51,10 +51,7 @@ export default function HomeScreen() {
               <Text style={styles.separatorText}>OR</Text>
               <View style={styles.separatorLine} />
             </View>
-            <ActionButton
-              label="Continue with phone number"
-              onPress={() => router.push('/phone')}
-            />
+            <PasskeyActions mode="both" />
             {notice ? <InlineNotice message={notice} /> : null}
           </View>
         </View>

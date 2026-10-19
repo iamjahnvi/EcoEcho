@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActionButton, InlineNotice, OnboardingColors } from '@/components/onboarding-ui';
+import { PasskeyActions } from '@/components/passkey-actions';
 import { MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getSupabaseClient } from '@/lib/supabase';
@@ -259,6 +260,8 @@ export default function VerifyScreen() {
               disabled={isSubmitting || !canUseOtpFlow || code.some((digit) => !digit)}
               onPress={handleVerify}
             />
+
+            <PasskeyActions mode="register" />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
