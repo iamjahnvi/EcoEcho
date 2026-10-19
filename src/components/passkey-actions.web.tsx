@@ -41,7 +41,7 @@ function getFailureMessage(error: unknown, operation: 'sign-in' | 'registration'
   }
 
   return operation === 'sign-in'
-    ? 'Passkey sign-in could not be completed. Try again or use Google or phone sign-in.'
+    ? 'Passkey sign-in could not be completed. Try again or use Google sign-in.'
     : 'Passkey registration could not be completed. Try again or use another sign-in method.';
 }
 
@@ -163,7 +163,7 @@ export function PasskeyActions({ mode }: PasskeyActionsProps) {
       }
       if (!hasSignedInUser(sessionData.session)) {
         setHasSession(false);
-        setNotice('Sign in with Google or phone OTP before registering a passkey.');
+        setNotice('Sign in with Google before registering a passkey.');
         setNoticeKind('error');
         return;
       }

@@ -40,8 +40,8 @@ export function PasskeyActions({ mode }: PasskeyActionsProps) {
   function explainNativeSetup() {
     setNotice(
       mode === 'register'
-        ? 'Native passkey registration is not configured in this Android build yet. Use Google or phone OTP for now.'
-        : 'Native passkey sign-in is not configured in this Android build yet. Use Google or phone OTP for now.'
+        ? 'Native passkey registration is not configured in this Android build yet. Use Google sign-in for now.'
+        : 'Native passkey sign-in is not configured in this Android build yet. Use Google sign-in for now.'
     );
   }
 

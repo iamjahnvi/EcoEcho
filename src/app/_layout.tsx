@@ -13,8 +13,6 @@ export default function RootLayout() {
       <AnimatedSplashOverlay />
       <Stack initialRouteName="(tabs)" screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="phone" />
-        <Stack.Screen name="verify" />
       </Stack>
     </ThemeProvider>
   );
