@@ -25,6 +25,7 @@ export function getSupabaseClient() {
       persistSession: true,
       detectSessionInUrl: Platform.OS === 'web',
       flowType: Platform.OS === 'web' ? 'pkce' : 'implicit',
+      experimental: { passkey: true },
     },
   });
 
