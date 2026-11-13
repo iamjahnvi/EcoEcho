@@ -2,14 +2,17 @@ import { Image } from 'expo-image';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 import { GoogleSignInAction } from '@/components/google-sign-in-action';
-import { InlineNotice, OnboardingColors } from '@/components/onboarding-ui';
+import { ActionButton, InlineNotice, OnboardingColors } from '@/components/onboarding-ui';
 import { MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { getSupabaseClient } from '@/lib/supabase';
 
 export default function HomeScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const [notice, setNotice] = useState('');
 
   return (
@@ -45,6 +48,16 @@ export default function HomeScreen() {
           <View style={styles.loginPanel}>
             <Text style={styles.panelTitle}>GET STARTED</Text>
             <GoogleSignInAction onNotice={setNotice} />
+            <View style={styles.separator}>
+              <View style={styles.separatorLine} />
+              <Text style={styles.separatorText}>OR</Text>
+              <View style={styles.separatorLine} />
+            </View>
+            <ActionButton
+              label="Continue with Email"
+              variant="outlined"
+              onPress={() => router.push('/email/index')}
+            />
             {notice ? <InlineNotice message={notice} /> : null}
           </View>
         </View>
