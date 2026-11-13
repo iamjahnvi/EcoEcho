@@ -66,7 +66,7 @@ export default function EmailSignInScreen() {
       }, 1000);
 
       // Navigate to OTP verification screen with email
-      router.push('/email/index');
+      router.push('/email/otp');
     } catch (err: any) {
       setNotice(err.message || 'Failed to send verification code.');
     } finally {

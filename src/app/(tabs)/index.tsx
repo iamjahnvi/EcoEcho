@@ -56,7 +56,7 @@ export default function HomeScreen() {
             <ActionButton
               label="Continue with Email"
               variant="outlined"
-              onPress={() => router.push('/email/index')}
+              onPress={() => router.push('/email')}
             />
             {notice ? <InlineNotice message={notice} /> : null}
           </View>
