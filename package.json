@@ -27,7 +27,6 @@
     "react-native-gesture-handler": "~2.32.0",
     "react-native-nitro-google-signin": "2.3.0",
     "react-native-nitro-modules": "0.37.1",
-    "react-native-passkey": "3.6.2",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
@@ -47,8 +46,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint",
-    "test:passkey": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/android-passkey-auth.test.mjs"
+    "lint": "expo lint"
   },
   "private": true
 }

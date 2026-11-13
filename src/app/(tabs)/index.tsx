@@ -4,7 +4,6 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GoogleSignInAction } from '@/components/google-sign-in-action';
-import { PasskeyActions } from '@/components/passkey-actions';
 import { InlineNotice, OnboardingColors } from '@/components/onboarding-ui';
 import { MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -46,12 +45,6 @@ export default function HomeScreen() {
           <View style={styles.loginPanel}>
             <Text style={styles.panelTitle}>GET STARTED</Text>
             <GoogleSignInAction onNotice={setNotice} />
-            <View style={styles.separator}>
-              <View style={styles.separatorLine} />
-              <Text style={styles.separatorText}>OR</Text>
-              <View style={styles.separatorLine} />
-            </View>
-            <PasskeyActions mode="both" />
             {notice ? <InlineNotice message={notice} /> : null}
           </View>
         </View>
