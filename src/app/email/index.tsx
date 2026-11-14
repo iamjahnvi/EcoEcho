@@ -5,6 +5,7 @@ import { SymbolView } from 'expo-symbols';
 
 import { ActionButton, InlineNotice, OnboardingColors } from '@/components/onboarding-ui';
 import { getSupabaseClient } from '@/lib/supabase';
+import { getPostAuthPath } from '@/lib/onboarding';
 import { GoogleSignInAction } from '@/components/google-sign-in-action';
 
 export default function EmailAuthScreen() {
@@ -71,7 +72,7 @@ export default function EmailAuthScreen() {
         password,
         options: {
           // Keep profile creation compatible with consumers of user metadata.
-          data: { full_name: '' },
+          data: { full_name: '', profile_onboarding_started: true },
           emailRedirectTo: process.env.EXPO_PUBLIC_SUPABASE_URL,
         },
       });
@@ -114,7 +115,7 @@ export default function EmailAuthScreen() {
     setNotice('');
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: loginEmail,
         password: loginPassword,
       });
@@ -124,13 +125,12 @@ export default function EmailAuthScreen() {
         return;
       }
 
-      // Sign-in successful
-      setNotice('You are signed in to EcoEcho.');
-      
-      // Small delay then navigate home
-      setTimeout(() => {
-        router.replace('/');
-      }, 500);
+      if (!data.user) {
+        setNotice('Unable to retrieve your account. Please try again.');
+        return;
+      }
+
+      router.replace(getPostAuthPath(data.user));
     } catch (err: any) {
       setNotice(err.message || 'Log-in failed. Please try again.');
     } finally {

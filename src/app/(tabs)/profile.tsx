@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActionButton, InlineNotice, OnboardingColors } from '@/components/onboarding-ui';
 import { getSupabaseClient } from '@/lib/supabase';
+import { hasCompletedProfile } from '@/lib/onboarding';
 
 type ProfileDraft = {
   username: string;
@@ -104,6 +105,7 @@ export default function ProfileScreen() {
   const { width } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const [userId, setUserId] = useState('');
+  const [isProfileComplete, setIsProfileComplete] = useState(false);
   const [email, setEmail] = useState('');
   const [draft, setDraft] = useState<ProfileDraft>(emptyProfile);
   const [errors, setErrors] = useState<ProfileErrors>({});
@@ -124,6 +126,7 @@ export default function ProfileScreen() {
 
       const metadata = data.user.user_metadata ?? {};
       setUserId(data.user.id);
+      setIsProfileComplete(hasCompletedProfile(data.user));
       setEmail(data.user.email ?? '');
       setDraft({
         username: fieldFromMetadata(metadata, metadataKeys.username),
@@ -202,10 +205,13 @@ export default function ProfileScreen() {
         }
       });
       metadata.profile_complete = true;
+      metadata.profile_onboarding_started = true;
 
       const { error } = await supabase.auth.updateUser({ data: metadata });
       if (error) throw error;
+      setIsProfileComplete(true);
       setNotice('Profile saved successfully.');
+      setTimeout(() => router.replace('/(tabs)'), 700);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to save your profile. Please try again.');
     } finally {
@@ -261,7 +267,7 @@ export default function ProfileScreen() {
             >
               <SymbolView name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }} tintColor={OnboardingColors.forest} size={22} />
             </TouchableOpacity>
-            <Text style={styles.heading}>MY PROFILE</Text>
+            <Text style={styles.heading}>{isProfileComplete ? 'MY PROFILE' : 'COMPLETE YOUR PROFILE'}</Text>
             <View style={styles.headerSpacer} />
           </View>
 

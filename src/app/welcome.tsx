@@ -44,7 +44,7 @@ export default function WelcomeScreen() {
         </View>
 
         <View style={styles.cta}>
-          <ActionButton label="Let's Go" onPress={() => router.replace('/(tabs)')} />
+          <ActionButton label="Let's Go" onPress={() => router.replace('/(tabs)/profile')} />
         </View>
       </View>
     </SafeAreaView>

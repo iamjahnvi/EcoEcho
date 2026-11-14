@@ -1,8 +1,10 @@
 import * as Crypto from 'expo-crypto';
+import { router } from 'expo-router';
 import { useState } from 'react';
 
 import { ActionButton } from '@/components/onboarding-ui';
 import { getSupabaseClient } from '@/lib/supabase';
+import { getPostAuthPath, isNewSupabaseAccount } from '@/lib/onboarding';
 
 type GoogleSignInActionProps = {
   onNotice: (message: string) => void;
@@ -189,7 +191,21 @@ export function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
         return;
       }
 
-      onNotice('You are signed in to EcoEcho with Google.');
+      const isNewAccount = isNewSupabaseAccount(data.session.user);
+      let user = data.session.user;
+      const shouldShowWelcome = isNewAccount && user.user_metadata?.profile_onboarding_started !== true;
+      if (shouldShowWelcome) {
+        try {
+          const { data: updated, error: metadataError } = await supabase.auth.updateUser({
+            data: { ...user.user_metadata, profile_onboarding_started: true },
+          });
+          if (!metadataError && updated.user) user = updated.user;
+        } catch {
+          // Continue to Welcome; profile save will persist onboarding state.
+        }
+      }
+
+      router.replace(shouldShowWelcome ? '/welcome' : getPostAuthPath(user));
     } catch (error) {
       onNotice(getSignInErrorMessage(error, stage, googleSignIn));
     } finally {

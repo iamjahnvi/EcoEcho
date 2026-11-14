@@ -1,10 +1,12 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import type { User } from '@supabase/supabase-js';
 
 import { ActionButton, InlineNotice } from '@/components/onboarding-ui';
 import { useTheme } from '@/hooks/use-theme';
 import { getSupabaseClient } from '@/lib/supabase';
+import { getPostAuthPath, hasCompletedProfile, isNewSupabaseAccount } from '@/lib/onboarding';
 
 export default function AuthCallbackScreen() {
   const theme = useTheme();
@@ -13,17 +15,61 @@ export default function AuthCallbackScreen() {
     oauthError ? 'Google sign-in was cancelled or could not be completed.' : ''
   );
   const [isComplete, setIsComplete] = useState(false);
+  const didNavigate = useRef(false);
 
   useEffect(() => {
     if (oauthError) return;
 
     let isMounted = true;
+    let navigationTimer: ReturnType<typeof setTimeout> | undefined;
     const supabase = getSupabaseClient();
+    const navigateOnce = (sessionUser: User) => {
+      if (!isMounted || didNavigate.current) return;
+      didNavigate.current = true;
+
+      // Leave Supabase's auth-state callback before making any further auth calls.
+      navigationTimer = setTimeout(() => {
+        void (async () => {
+          try {
+            if (!isMounted) return;
+            const user = sessionUser;
+
+            if (hasCompletedProfile(user)) {
+              router.replace('/(tabs)');
+              return;
+            }
+
+            const shouldShowWelcome = isNewSupabaseAccount(user)
+              && user.user_metadata?.profile_onboarding_started !== true;
+            if (shouldShowWelcome) {
+              try {
+                await supabase.auth.updateUser({
+                  data: { ...user.user_metadata, profile_onboarding_started: true },
+                });
+              } catch {
+                // Continue to Welcome; profile save will persist onboarding state.
+              }
+              if (!isMounted) return;
+              router.replace('/welcome');
+              return;
+            }
+
+            router.replace(getPostAuthPath(user));
+          } catch {
+            if (!isMounted) return;
+            didNavigate.current = false;
+            setNotice('Google sign-in could not be completed. Please try again.');
+            setIsComplete(true);
+          }
+        })();
+      }, 0);
+    };
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user.id) {
-        router.replace('/');
+        navigateOnce(session.user);
       }
     });
 
@@ -38,7 +84,7 @@ export default function AuthCallbackScreen() {
           return;
         }
 
-        router.replace('/');
+        navigateOnce(data.session.user);
       })
       .catch(() => {
         if (!isMounted) return;
@@ -48,6 +94,7 @@ export default function AuthCallbackScreen() {
 
     return () => {
       isMounted = false;
+      if (navigationTimer) clearTimeout(navigationTimer);
       subscription.unsubscribe();
     };
   }, [oauthError]);
