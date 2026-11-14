@@ -1,10 +1,35 @@
 import 'react-native-url-polyfill/auto';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 
-let supabaseClient: ReturnType<typeof createClient> | null = null;
+export type ContributionRow = {
+  id: string;
+  user_id: string;
+  display_name: string;
+  photo_path: string;
+  task_title: string;
+  description: string | null;
+  created_at: string;
+};
+
+export type Database = {
+  public: {
+    Tables: {
+      contributions: {
+        Row: ContributionRow;
+        Insert: Omit<ContributionRow, 'id' | 'created_at'> & { id?: string; created_at?: string };
+        Update: Partial<Omit<ContributionRow, 'id'>>;
+        Relationships: [];
+      };
+    };
+    Views: Record<never, never>;
+    Functions: Record<never, never>;
+  };
+};
+
+let supabaseClient: SupabaseClient<Database> | null = null;
 
 export function getSupabaseClient() {
   if (supabaseClient) return supabaseClient;
@@ -18,7 +43,7 @@ export function getSupabaseClient() {
     );
   }
 
-  supabaseClient = createClient(supabaseUrl, supabaseKey, {
+  supabaseClient = createClient<Database>(supabaseUrl, supabaseKey, {
     auth: {
       storage: AsyncStorage,
       autoRefreshToken: true,
