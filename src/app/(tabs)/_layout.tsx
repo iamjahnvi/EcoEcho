@@ -7,7 +7,7 @@ import { OnboardingColors } from '@/components/onboarding-ui';
 import { useAuthSession } from '@/contexts/auth-session-context';
 
 export const unstable_settings = {
-  initialRouteName: 'index',
+  initialRouteName: 'home',
 };
 
 export default function TabsLayout() {
@@ -21,7 +21,7 @@ export default function TabsLayout() {
     );
   }
 
-  if (!session) return <Redirect href="/auth/index" />;
+  if (!session) return <Redirect href="/auth" />;
   return <AppTabs />;
 }
 

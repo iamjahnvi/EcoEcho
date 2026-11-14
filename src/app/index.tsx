@@ -16,7 +16,7 @@ export default function EntryRoute() {
     );
   }
 
-  return <Redirect href={session ? '/(tabs)' : '/auth/index'} />;
+  return <Redirect href={session ? '/(tabs)' : '/auth'} />;
 }
 
 const styles = StyleSheet.create({
