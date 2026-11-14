@@ -66,7 +66,7 @@ export default function EmailAuthScreen() {
     setNotice('');
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -81,9 +81,15 @@ export default function EmailAuthScreen() {
         return;
       }
 
-      // Sign-up successful - navigate to login tab
-      setTab('log-in');
-      setNotice('Account created! Please log in with your email and password.');
+      // Supabase can return an obfuscated user with no identities for an
+      // already-registered email when email enumeration protection is enabled.
+      if (!data.user || data.user.identities?.length === 0) {
+        setNotice('This account may already exist. Try logging in instead.');
+        return;
+      }
+
+      // Signup is the only flow that enters first-time welcome onboarding.
+      router.replace('/welcome');
     } catch (err: any) {
       setNotice(err.message || 'Sign-up failed. Please try again.');
     } finally {
