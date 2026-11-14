@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
 import {
+  FocusEvent,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -154,8 +155,15 @@ export default function ProfileScreen() {
     setNotice('');
   };
 
-  const keepFocusedFieldVisible = () => {
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250);
+  const keepFocusedFieldVisible = (event: FocusEvent) => {
+    const focusedInput = event.nativeEvent.target;
+    // Scroll the focused input above the keyboard. Scrolling to the end here
+    // sends every field focus straight to the socials section.
+    setTimeout(() => {
+      scrollRef.current
+        ?.getScrollResponder()
+        .scrollResponderScrollNativeHandleToKeyboard(focusedInput, 96, true);
+    }, 250);
   };
 
   const validate = () => {
