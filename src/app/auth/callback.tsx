@@ -1,12 +1,12 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import type { User } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 
 import { ActionButton, InlineNotice } from '@/components/onboarding-ui';
 import { useTheme } from '@/hooks/use-theme';
 import { getSupabaseClient } from '@/lib/supabase';
-import { getPostAuthPath, hasCompletedProfile, isNewSupabaseAccount } from '@/lib/onboarding';
+import { getPostAuthPath } from '@/lib/onboarding';
 
 export default function AuthCallbackScreen() {
   const theme = useTheme();
@@ -23,38 +23,20 @@ export default function AuthCallbackScreen() {
     let isMounted = true;
     let navigationTimer: ReturnType<typeof setTimeout> | undefined;
     const supabase = getSupabaseClient();
-    const navigateOnce = (sessionUser: User) => {
+    const navigateOnce = (session: Session) => {
       if (!isMounted || didNavigate.current) return;
       didNavigate.current = true;
 
-      // Leave Supabase's auth-state callback before making any further auth calls.
+      // Defer navigation until Supabase's auth-state callback has returned.
       navigationTimer = setTimeout(() => {
         void (async () => {
           try {
             if (!isMounted) return;
-            const user = sessionUser;
-
-            if (hasCompletedProfile(user)) {
-              router.replace('/(tabs)');
-              return;
-            }
-
-            const shouldShowWelcome = isNewSupabaseAccount(user)
-              && user.user_metadata?.profile_onboarding_started !== true;
-            if (shouldShowWelcome) {
-              try {
-                await supabase.auth.updateUser({
-                  data: { ...user.user_metadata, profile_onboarding_started: true },
-                });
-              } catch {
-                // Continue to Welcome; profile save will persist onboarding state.
-              }
-              if (!isMounted) return;
-              router.replace('/welcome');
-              return;
-            }
-
-            router.replace(getPostAuthPath(user));
+            const user = session.user;
+            const destination = user.app_metadata?.provider === 'google'
+              ? '/(tabs)'
+              : getPostAuthPath(user);
+            router.replace(destination);
           } catch {
             if (!isMounted) return;
             didNavigate.current = false;
@@ -69,7 +51,7 @@ export default function AuthCallbackScreen() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user.id) {
-        navigateOnce(session.user);
+        navigateOnce(session);
       }
     });
 
@@ -84,7 +66,7 @@ export default function AuthCallbackScreen() {
           return;
         }
 
-        navigateOnce(data.session.user);
+        navigateOnce(data.session);
       })
       .catch(() => {
         if (!isMounted) return;

@@ -1,10 +1,12 @@
 import { Image } from 'expo-image';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import type { Session } from '@supabase/supabase-js';
 
 import { GoogleSignInAction } from '@/components/google-sign-in-action';
+import { HomeDashboard } from '@/components/home-dashboard';
 import { ActionButton, InlineNotice, OnboardingColors } from '@/components/onboarding-ui';
 import { MaxContentWidth } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -14,6 +16,45 @@ export default function HomeScreen() {
   const theme = useTheme();
   const router = useRouter();
   const [notice, setNotice] = useState('');
+  const [session, setSession] = useState<Session | null>(null);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    let authEventReceived = false;
+    const supabase = getSupabaseClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      authEventReceived = true;
+      if (!isMounted) return;
+      setSession(nextSession);
+      setIsCheckingSession(false);
+    });
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!isMounted || authEventReceived) return;
+      setSession(data.session);
+      setIsCheckingSession(false);
+    }).catch(() => {
+      if (!isMounted || authEventReceived) return;
+      setSession(null);
+      setIsCheckingSession(false);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  if (isCheckingSession) {
+    return (
+      <SafeAreaView style={[styles.safeArea, styles.loadingState]}>
+        <ActivityIndicator size="small" color={OnboardingColors.forest} />
+      </SafeAreaView>
+    );
+  }
+
+  if (session?.user) return <HomeDashboard />;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -69,6 +110,10 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+  },
+  loadingState: {
+    justifyContent: 'center',
+    backgroundColor: OnboardingColors.panel,
   },
   scrollContent: {
     flexGrow: 1,

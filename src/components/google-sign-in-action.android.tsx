@@ -4,7 +4,6 @@ import { useState } from 'react';
 
 import { ActionButton } from '@/components/onboarding-ui';
 import { getSupabaseClient } from '@/lib/supabase';
-import { getPostAuthPath, isNewSupabaseAccount } from '@/lib/onboarding';
 
 type GoogleSignInActionProps = {
   onNotice: (message: string) => void;
@@ -191,21 +190,13 @@ export function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
         return;
       }
 
-      const isNewAccount = isNewSupabaseAccount(data.session.user);
-      let user = data.session.user;
-      const shouldShowWelcome = isNewAccount && user.user_metadata?.profile_onboarding_started !== true;
-      if (shouldShowWelcome) {
-        try {
-          const { data: updated, error: metadataError } = await supabase.auth.updateUser({
-            data: { ...user.user_metadata, profile_onboarding_started: true },
-          });
-          if (!metadataError && updated.user) user = updated.user;
-        } catch {
-          // Continue to Welcome; profile save will persist onboarding state.
-        }
+      const { data: authenticatedSession, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !authenticatedSession.session?.user.id) {
+        onNotice('Google sign-in completed, but the EcoEcho session could not be retrieved. Please try again.');
+        return;
       }
 
-      router.replace(shouldShowWelcome ? '/welcome' : getPostAuthPath(user));
+      router.replace('/(tabs)');
     } catch (error) {
       onNotice(getSignInErrorMessage(error, stage, googleSignIn));
     } finally {
