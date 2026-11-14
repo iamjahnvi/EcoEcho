@@ -1,25 +1,22 @@
-import { useState, useEffect } from 'react';
-import { ScrollView, StyleSheet, Text, View, TextInput, Pressable, TouchableOpacity, SafeAreaView } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import { ScrollView, StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as AsyncStorage from '@react-native-async-storage/async-storage';
+import { SymbolView } from 'expo-symbols';
 
-import { ActionButton, InlineNotice } from '@/components/onboarding-ui';
-import { OnboardingColors } from '@/components/onboarding-ui';
-import { MaxContentWidth } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { ActionButton, InlineNotice, OnboardingColors } from '@/components/onboarding-ui';
 import { getSupabaseClient } from '@/lib/supabase';
 import { GoogleSignInAction } from '@/components/google-sign-in-action';
 
 export default function EmailAuthScreen() {
   const router = useRouter();
-  const theme = useTheme();
   const [tab, setTab] = useState<'sign-up' | 'log-in'>('sign-up');
   const [notice, setNotice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
@@ -41,8 +38,7 @@ export default function EmailAuthScreen() {
   };
 
   const handleSignUp = async () => {
-    if (!fullName || !email || !password || !confirmPassword) {
-      setNotice('All fields are required.');
+    if (!email || !password || !confirmPassword) {
       setNotice('All fields are required.');
       return;
     }
@@ -74,9 +70,8 @@ export default function EmailAuthScreen() {
         email,
         password,
         options: {
-          data: {
-            full_name: fullName,
-          },
+          // Keep profile creation compatible with consumers of user metadata.
+          data: { full_name: '' },
           emailRedirectTo: process.env.EXPO_PUBLIC_SUPABASE_URL,
         },
       });
@@ -113,7 +108,7 @@ export default function EmailAuthScreen() {
     setNotice('');
 
     try {
-      const { error, data } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: loginEmail,
         password: loginPassword,
       });
@@ -174,18 +169,16 @@ export default function EmailAuthScreen() {
 
   // Determine which form to show based on tab
   const isSignUpTab = tab === 'sign-up';
+  const scrollViewRef = useRef<ScrollView>(null);
+  const keepFocusedInputVisible = () => {
+    // Android resizes the available viewport; scrolling after the keyboard opens
+    // keeps lower fields accessible on short screens as well.
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 250);
+  };
 
   // Sign Up form fields
   const signUpForm = (
     <View style={styles.form}>
-      <Text style={styles.label}>Full Name</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your full name"
-        value={fullName}
-        onChangeText={setFullName}
-        autoCapitalize="words"
-      />
       <Text style={styles.label}>Email Address</Text>
       <TextInput
         style={styles.input}
@@ -198,25 +191,57 @@ export default function EmailAuthScreen() {
         autoComplete="email"
       />
       <Text style={styles.label}>Password</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoCapitalize="none"
-        returnKeyType="next"
-      />
+      <View style={styles.passwordInputContainer}>
+        <TextInput
+          style={[styles.input, styles.passwordInput]}
+          placeholder="Enter your password"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={!isPasswordVisible}
+          autoCapitalize="none"
+          returnKeyType="next"
+          onFocus={keepFocusedInputVisible}
+        />
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={isPasswordVisible ? 'Hide password' : 'Show password'}
+          onPress={() => setIsPasswordVisible((visible) => !visible)}
+          style={styles.visibilityButton}
+          hitSlop={8}
+        >
+          <SymbolView
+            name={{ ios: isPasswordVisible ? 'eye.slash' : 'eye', android: isPasswordVisible ? 'visibility_off' : 'visibility', web: isPasswordVisible ? 'visibility_off' : 'visibility' }}
+            tintColor={OnboardingColors.muted}
+            size={20}
+          />
+        </TouchableOpacity>
+      </View>
       <Text style={styles.label}>Confirm Password</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Confirm your password"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        secureTextEntry
-        autoCapitalize="none"
-        returnKeyType="done"
-      />
+      <View style={styles.passwordInputContainer}>
+        <TextInput
+          style={[styles.input, styles.passwordInput]}
+          placeholder="Confirm your password"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secureTextEntry={!isConfirmPasswordVisible}
+          autoCapitalize="none"
+          returnKeyType="done"
+          onFocus={keepFocusedInputVisible}
+        />
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={isConfirmPasswordVisible ? 'Hide confirm password' : 'Show confirm password'}
+          onPress={() => setIsConfirmPasswordVisible((visible) => !visible)}
+          style={styles.visibilityButton}
+          hitSlop={8}
+        >
+          <SymbolView
+            name={{ ios: isConfirmPasswordVisible ? 'eye.slash' : 'eye', android: isConfirmPasswordVisible ? 'visibility_off' : 'visibility', web: isConfirmPasswordVisible ? 'visibility_off' : 'visibility' }}
+            tintColor={OnboardingColors.muted}
+            size={20}
+          />
+        </TouchableOpacity>
+      </View>
       <View style={styles.buttonRow}>
         <ActionButton
           label="Create Account"
@@ -287,7 +312,12 @@ export default function EmailAuthScreen() {
 
   return (
     <SafeAreaView style={styles.safeAreaContainer}>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsHorizontalScrollIndicator={false}
@@ -309,6 +339,7 @@ export default function EmailAuthScreen() {
 
         <GoogleSignInAction onNotice={setNotice} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -317,6 +348,9 @@ const styles = StyleSheet.create({
   safeAreaContainer: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
@@ -378,6 +412,21 @@ const styles = StyleSheet.create({
     color: OnboardingColors.forest,
     backgroundColor: OnboardingColors.white,
     marginBottom: 16,
+  },
+  passwordInputContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingRight: 54,
+  },
+  visibilityButton: {
+    position: 'absolute',
+    right: 14,
+    top: 0,
+    height: 52,
+    width: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonRow: {
     marginTop: 16,
