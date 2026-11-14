@@ -4,8 +4,8 @@ import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 
 import { ActionButton, InlineNotice, OnboardingColors } from '@/components/onboarding-ui';
+import { useAuthSession } from '@/contexts/auth-session-context';
 import { getSupabaseClient } from '@/lib/supabase';
-import { getPostAuthPath } from '@/lib/onboarding';
 import { GoogleSignInAction } from '@/components/google-sign-in-action';
 
 export default function EmailAuthScreen() {
@@ -20,6 +20,7 @@ export default function EmailAuthScreen() {
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const { refreshSession } = useAuthSession();
 
   const supabase = getSupabaseClient();
 
@@ -89,8 +90,16 @@ export default function EmailAuthScreen() {
         return;
       }
 
-      // Signup is the only flow that enters first-time welcome onboarding.
-      router.replace('/welcome');
+      if (data.session) {
+        const activeSession = await refreshSession();
+        if (!activeSession) {
+          setNotice('Account created, but the EcoEcho session could not be loaded. Please log in.');
+          return;
+        }
+        router.replace('/(tabs)');
+      } else {
+        setNotice('Account created. Check your email to confirm your address, then log in.');
+      }
     } catch (err: any) {
       setNotice(err.message || 'Sign-up failed. Please try again.');
     } finally {
@@ -130,7 +139,13 @@ export default function EmailAuthScreen() {
         return;
       }
 
-      router.replace(getPostAuthPath(data.user));
+      const activeSession = await refreshSession();
+      if (!activeSession) {
+        setNotice('Sign-in succeeded, but the EcoEcho session could not be loaded. Please try again.');
+        return;
+      }
+
+      router.replace('/(tabs)');
     } catch (err: any) {
       setNotice(err.message || 'Log-in failed. Please try again.');
     } finally {

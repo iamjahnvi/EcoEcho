@@ -1,15 +1,15 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import type { Session } from '@supabase/supabase-js';
 
 import { ActionButton, InlineNotice } from '@/components/onboarding-ui';
+import { useAuthSession } from '@/contexts/auth-session-context';
 import { useTheme } from '@/hooks/use-theme';
 import { getSupabaseClient } from '@/lib/supabase';
-import { getPostAuthPath } from '@/lib/onboarding';
 
 export default function AuthCallbackScreen() {
   const theme = useTheme();
+  const { refreshSession } = useAuthSession();
   const { error: oauthError } = useLocalSearchParams<{ error?: string }>();
   const [notice, setNotice] = useState(
     oauthError ? 'Google sign-in was cancelled or could not be completed.' : ''
@@ -23,7 +23,7 @@ export default function AuthCallbackScreen() {
     let isMounted = true;
     let navigationTimer: ReturnType<typeof setTimeout> | undefined;
     const supabase = getSupabaseClient();
-    const navigateOnce = (session: Session) => {
+    const navigateOnce = () => {
       if (!isMounted || didNavigate.current) return;
       didNavigate.current = true;
 
@@ -32,11 +32,9 @@ export default function AuthCallbackScreen() {
         void (async () => {
           try {
             if (!isMounted) return;
-            const user = session.user;
-            const destination = user.app_metadata?.provider === 'google'
-              ? '/(tabs)'
-              : getPostAuthPath(user);
-            router.replace(destination);
+            const activeSession = await refreshSession();
+            if (!activeSession) throw new Error('No active Supabase session.');
+            router.replace('/(tabs)');
           } catch {
             if (!isMounted) return;
             didNavigate.current = false;
@@ -51,7 +49,7 @@ export default function AuthCallbackScreen() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user.id) {
-        navigateOnce(session);
+        navigateOnce();
       }
     });
 
@@ -66,7 +64,7 @@ export default function AuthCallbackScreen() {
           return;
         }
 
-        navigateOnce(data.session);
+        navigateOnce();
       })
       .catch(() => {
         if (!isMounted) return;
@@ -79,7 +77,7 @@ export default function AuthCallbackScreen() {
       if (navigationTimer) clearTimeout(navigationTimer);
       subscription.unsubscribe();
     };
-  }, [oauthError]);
+  }, [oauthError, refreshSession]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>

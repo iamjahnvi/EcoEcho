@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 
 import { ActionButton } from '@/components/onboarding-ui';
+import { useAuthSession } from '@/contexts/auth-session-context';
 import { getSupabaseClient } from '@/lib/supabase';
 
 type GoogleSignInActionProps = {
@@ -107,6 +108,7 @@ function getSignInErrorMessage(
 
 export function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const { refreshSession } = useAuthSession();
 
   async function handleSignIn() {
     if (isSigningIn) return;
@@ -190,8 +192,8 @@ export function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
         return;
       }
 
-      const { data: authenticatedSession, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !authenticatedSession.session?.user.id) {
+      const authenticatedSession = await refreshSession();
+      if (!authenticatedSession?.user.id) {
         onNotice('Google sign-in completed, but the EcoEcho session could not be retrieved. Please try again.');
         return;
       }

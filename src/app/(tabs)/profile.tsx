@@ -113,6 +113,7 @@ export default function ProfileScreen() {
   const [notice, setNotice] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [showBirthdayPicker, setShowBirthdayPicker] = useState(false);
 
   useEffect(() => {
@@ -224,6 +225,19 @@ export default function ProfileScreen() {
       setNotice(error instanceof Error ? error.message : 'Unable to save your profile. Please try again.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const signOut = async () => {
+    setIsSigningOut(true);
+    setNotice('');
+    try {
+      const { error } = await getSupabaseClient().auth.signOut();
+      if (error) throw error;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to sign out. Please try again.');
+    } finally {
+      setIsSigningOut(false);
     }
   };
 
@@ -368,6 +382,9 @@ export default function ProfileScreen() {
             {notice ? <InlineNotice message={notice} kind={notice.startsWith('Profile saved') ? 'info' : 'error'} /> : null}
             <View style={styles.saveButton}><ActionButton label={isSaving ? 'Saving…' : 'Save Profile'} disabled={isSaving || isLoading} onPress={saveProfile} /></View>
             <Text style={styles.requiredNote}>* Required fields</Text>
+            <View style={styles.signOutButton}>
+              <ActionButton label={isSigningOut ? 'Signing out…' : 'Sign Out'} variant="outlined" disabled={isSigningOut} onPress={signOut} />
+            </View>
           </> : null}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -412,6 +429,7 @@ const styles = StyleSheet.create({
   socialInputWrap: { flex: 1 },
   saveButton: { marginTop: 2 },
   requiredNote: { textAlign: 'center', fontSize: 11, color: OnboardingColors.muted },
+  signOutButton: { marginTop: 8 },
   status: { color: OnboardingColors.muted, fontSize: 14, lineHeight: 20, textAlign: 'center' },
   loginPrompt: { gap: 14 },
 });
