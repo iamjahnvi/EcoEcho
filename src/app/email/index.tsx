@@ -96,7 +96,7 @@ export default function EmailAuthScreen() {
           setNotice('Account created, but the EcoEcho session could not be loaded. Please log in.');
           return;
         }
-        router.replace('/(tabs)');
+        router.replace('/welcome');
       } else {
         setNotice('Account created. Check your email to confirm your address, then log in.');
       }
@@ -145,7 +145,7 @@ export default function EmailAuthScreen() {
         return;
       }
 
-      router.replace('/(tabs)');
+      router.replace('/welcome');
     } catch (err: any) {
       setNotice(err.message || 'Log-in failed. Please try again.');
     } finally {

@@ -34,7 +34,7 @@ export default function AuthCallbackScreen() {
             if (!isMounted) return;
             const activeSession = await refreshSession();
             if (!activeSession) throw new Error('No active Supabase session.');
-            router.replace('/(tabs)');
+            router.replace('/welcome');
           } catch {
             if (!isMounted) return;
             didNavigate.current = false;

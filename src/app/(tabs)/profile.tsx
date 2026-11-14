@@ -220,7 +220,7 @@ export default function ProfileScreen() {
       if (error) throw error;
       setIsProfileComplete(true);
       setNotice('Profile saved successfully.');
-      setTimeout(() => router.replace('/(tabs)'), 700);
+      setTimeout(() => router.replace('/(tabs)/home'), 700);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to save your profile. Please try again.');
     } finally {
@@ -234,6 +234,8 @@ export default function ProfileScreen() {
     try {
       const { error } = await getSupabaseClient().auth.signOut();
       if (error) throw error;
+      // The auth-session listener updates the session; TabsLayout redirects
+      // to the authentication landing route when that session becomes null.
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to sign out. Please try again.');
     } finally {
@@ -282,7 +284,7 @@ export default function ProfileScreen() {
         >
           <View style={styles.header}>
             <TouchableOpacity
-              onPress={() => router.replace('/(tabs)')}
+              onPress={() => router.replace('/(tabs)/home')}
               style={styles.backButton}
               accessibilityRole="button"
               accessibilityLabel="Go back"

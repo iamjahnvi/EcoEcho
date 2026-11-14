@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Redirect, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActionButton, OnboardingColors } from '@/components/onboarding-ui';
+import { useAuthSession } from '@/contexts/auth-session-context';
 
 export default function WelcomeScreen() {
+  const { session, isLoading } = useAuthSession();
+  const hasContinued = useRef(false);
   const [growth] = useState(() => new Animated.Value(0.65));
   const [sway] = useState(() => new Animated.Value(0));
 
@@ -22,6 +25,21 @@ export default function WelcomeScreen() {
   }, [growth, sway]);
 
   const leafRotation = sway.interpolate({ inputRange: [0, 1], outputRange: ['-7deg', '7deg'] });
+  const continueToDashboard = () => {
+    if (hasContinued.current) return;
+    hasContinued.current = true;
+    router.replace('/(tabs)/home');
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={styles.loading}><ActivityIndicator size="small" color={OnboardingColors.forest} /></View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!session) return <Redirect href="/auth" />;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
@@ -44,7 +62,7 @@ export default function WelcomeScreen() {
               <View style={styles.face}>
                 <View style={styles.eye} />
                 <View style={styles.cheek} />
-                <Text style={styles.smile}>?</Text>
+                <View style={styles.smile} />
                 <View style={styles.cheek} />
                 <View style={styles.eye} />
               </View>
@@ -55,7 +73,7 @@ export default function WelcomeScreen() {
         </View>
 
         <View style={styles.cta}>
-          <ActionButton label="Let's Go" onPress={() => router.replace('/(tabs)/profile')} />
+          <ActionButton label="Let's Go" onPress={continueToDashboard} />
         </View>
       </View>
     </SafeAreaView>
@@ -64,6 +82,7 @@ export default function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F8FAF6' },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { flex: 1, paddingHorizontal: 26, paddingTop: 32, paddingBottom: 24, justifyContent: 'space-between' },
   message: { alignItems: 'center', gap: 12, paddingTop: 16 },
   eyebrow: { color: OnboardingColors.leaf, fontSize: 12, fontWeight: '800', letterSpacing: 2 },
@@ -83,7 +102,7 @@ const styles = StyleSheet.create({
   face: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 13, marginTop: 28 },
   eye: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#171713' },
   cheek: { width: 11, height: 11, borderRadius: 6, backgroundColor: '#F28E91' },
-  smile: { color: '#171713', fontSize: 36, lineHeight: 38, fontWeight: '700', marginTop: -9, marginHorizontal: -3 },
+  smile: { width: 22, height: 12, borderBottomWidth: 3, borderLeftWidth: 3, borderRightWidth: 3, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, borderColor: '#171713', marginTop: -8, marginHorizontal: -3 },
   plantCaption: { color: OnboardingColors.muted, fontSize: 13, marginTop: 18 },
   cta: { width: '100%', paddingBottom: 8 },
 });

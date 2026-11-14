@@ -17,6 +17,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" />
           <Stack.Screen name="auth" />
           <Stack.Screen name="email" />
+          <Stack.Screen name="welcome" />
           <Stack.Screen name="(tabs)" />
         </Stack>
       </ThemeProvider>

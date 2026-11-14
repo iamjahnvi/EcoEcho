@@ -198,7 +198,7 @@ export function GoogleSignInAction({ onNotice }: GoogleSignInActionProps) {
         return;
       }
 
-      router.replace('/(tabs)');
+      router.replace('/welcome');
     } catch (error) {
       onNotice(getSignInErrorMessage(error, stage, googleSignIn));
     } finally {
